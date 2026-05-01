@@ -1027,11 +1027,14 @@
 
 				const currentUrl = `${window.location.pathname}${window.location.search}`;
 				const encodedUrl = encodeURIComponent(currentUrl);
+				const isPublicRoute = $page.url.pathname.startsWith('/s/');
 
 				if (localStorage.token) {
 					// Get Session User Info
 					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
-						toast.error(`${error}`);
+						if (!isPublicRoute) {
+							toast.error(`${error}`);
+						}
 						return null;
 					});
 
@@ -1061,12 +1064,14 @@
 					} else {
 						// Redirect Invalid Session User to /auth Page
 						localStorage.removeItem('token');
-						await goto(`/auth?redirect=${encodedUrl}`);
+						if (!isPublicRoute) {
+							await goto(`/auth?redirect=${encodedUrl}`);
+						}
 					}
 				} else {
 					// Don't redirect if we're already on the auth page
 					// Needed because we pass in tokens from OAuth logins via URL fragments
-					if ($page.url.pathname !== '/auth') {
+					if ($page.url.pathname !== '/auth' && !isPublicRoute) {
 						await goto(`/auth?redirect=${encodedUrl}`);
 					}
 				}

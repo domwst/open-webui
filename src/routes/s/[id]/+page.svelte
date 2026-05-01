@@ -80,10 +80,13 @@
 		}
 
 		await models.set(
-			await getModels(
+			(await getModels(
 				localStorage.token,
 				$config?.features?.enable_direct_connections && ($settings?.directConnections ?? null)
-			)
+			).catch((error) => {
+				console.error(error);
+				return [];
+			})) ?? []
 		);
 		await chatId.set($page.params.id);
 		chat = await getChatByShareId(localStorage.token, $chatId).catch(async (error) => {

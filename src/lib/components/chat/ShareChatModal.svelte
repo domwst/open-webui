@@ -31,6 +31,7 @@
 		shareUrl = `${window.location.origin}/s/${sharedChat.share_id}`;
 		console.log(shareUrl);
 		chat = await getChatById(localStorage.token, chatId);
+		await loadAccessGrants();
 
 		return shareUrl;
 	};
