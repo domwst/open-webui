@@ -2399,6 +2399,16 @@
 
 		// Only send terminal_id if the model has terminal capability enabled
 		const terminalEnabled = model.info?.meta?.capabilities?.terminal ?? true;
+		const activeDirectTerminalServers = (($terminalServers ?? []) as any[]).filter((t) => !t.id);
+		const requestParams: Record<string, any> = {
+			...$settings?.params,
+			...params,
+			stop: getStopTokens()
+		};
+
+		if (terminalEnabled && (activeTerminalId || activeDirectTerminalServers.length > 0)) {
+			requestParams.function_calling = 'native';
+		}
 
 		const res = await generateOpenAIChatCompletion(
 			localStorage.token,
@@ -2406,11 +2416,7 @@
 				stream: stream,
 				model: model.id,
 				...(messages.length > 0 ? { messages } : {}),
-				params: {
-					...$settings?.params,
-					...params,
-					stop: getStopTokens()
-				},
+				params: requestParams,
 
 				files: (files?.length ?? 0) > 0 ? files : undefined,
 
@@ -2419,11 +2425,11 @@
 				skill_ids: skillIds.length > 0 ? skillIds : undefined,
 				terminal_id: terminalEnabled ? (activeTerminalId ?? undefined) : undefined,
 				tool_servers: [
-					...($toolServers ?? []).filter(
+					...(($toolServers ?? []) as any[]).filter(
 						(server, idx) => toolServerIds.includes(idx) || toolServerIds.includes(server?.id)
 					),
 					// Direct terminal servers — always included when enabled (not routed through selectedToolIds)
-					...($terminalServers ?? []).filter((t) => !t.id)
+					...activeDirectTerminalServers
 				],
 				features: getFeatures(),
 				variables: {

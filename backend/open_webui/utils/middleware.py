@@ -1352,6 +1352,18 @@ async def chat_completion_tools_handler(
 
                 tool_function_params = tool_call.get('parameters', {})
 
+                if event_emitter:
+                    await event_emitter(
+                        {
+                            'type': 'status',
+                            'data': {
+                                'action': 'tool_call',
+                                'description': f'Running {tool_function_name}',
+                                'done': False,
+                            },
+                        }
+                    )
+
                 tool = None
                 tool_type = ''
                 direct_tool = False
@@ -1422,6 +1434,17 @@ async def chat_completion_tools_handler(
                                 },
                             }
                         )
+
+                    await event_emitter(
+                        {
+                            'type': 'status',
+                            'data': {
+                                'action': 'tool_call',
+                                'description': f'Ran {tool_function_name}',
+                                'done': True,
+                            },
+                        }
+                    )
 
                 if tool_result:
                     tool = tools[tool_function_name]
@@ -2783,6 +2806,8 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             if mcp_tools_dict:
                 tools_dict = {**tools_dict, **mcp_tools_dict}
 
+        native_function_calling = metadata.get('params', {}).get('function_calling') == 'native'
+
         # Resolve terminal tools if terminal_id is set (outside tool_ids check
         # so system terminals work even when no other tools are selected)
         terminal_capability = (model.get('info', {}).get('meta', {}).get('capabilities') or {}).get('terminal', True)
@@ -2801,7 +2826,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     system_prompt = None
                 if terminal_tools:
                     tools_dict = {**tools_dict, **terminal_tools}
-                if system_prompt:
+                if system_prompt and native_function_calling:
                     form_data['messages'] = add_or_update_system_message(
                         system_prompt,
                         form_data['messages'],
@@ -2813,7 +2838,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
         if direct_tool_servers:
             for tool_server in direct_tool_servers:
                 system_prompt = tool_server.pop('system_prompt', None)
-                if system_prompt:
+                if system_prompt and native_function_calling:
                     form_data['messages'] = add_or_update_system_message(
                         system_prompt,
                         form_data['messages'],

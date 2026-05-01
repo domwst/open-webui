@@ -19,6 +19,7 @@
 		showEmbeds,
 		settings,
 		showFileNavPath,
+		pyodideWorker,
 		selectedTerminalId,
 		user
 	} from '$lib/stores';
@@ -69,14 +70,30 @@
 	}
 
 	$: hasMessages = history?.messages && Object.keys(history.messages).length > 0;
+	$: terminalServerList = ($terminalServers ?? []) as any[];
+	$: hasCodeInterpreterHistory = Object.values(history?.messages ?? {}).some((message: any) => {
+		const output = message?.output ?? [];
+		if (
+			Array.isArray(output) &&
+			output.some((item: any) => item?.type === 'open_webui:code_interpreter')
+		) {
+			return true;
+		}
+
+		const content = typeof message?.content === 'string' ? message.content : '';
+		return content.includes('type="code_interpreter"') || content.includes("type='code_interpreter'");
+	});
+	$: showPyodideFilesTab =
+		($config as any)?.code?.interpreter_engine !== 'jupyter' &&
+		(codeInterpreterEnabled || $pyodideWorker || hasCodeInterpreterHistory);
 
 	$: showControlsTab = $user?.role === 'admin' || ($user?.permissions?.chat?.controls ?? true);
 	$: showFilesTab =
 		($selectedTerminalId &&
-			(($terminalServers ?? []).some((t) => t.id && t.id === $selectedTerminalId) ||
+			(terminalServerList.some((t) => t.id && t.id === $selectedTerminalId) ||
 				$user?.role === 'admin' ||
 				($user?.permissions?.features?.direct_tool_servers ?? true))) ||
-		(codeInterpreterEnabled && $config?.code?.interpreter_engine !== 'jupyter');
+		showPyodideFilesTab;
 	$: showOverviewTab = hasMessages;
 
 	// Tab fallback: if active tab becomes hidden, switch to next available
@@ -109,7 +126,7 @@
 	// Clear selected direct terminal if user lost permission
 	$: if (
 		$selectedTerminalId &&
-		!($terminalServers ?? []).some((t) => t.id && t.id === $selectedTerminalId) &&
+		!terminalServerList.some((t) => t.id && t.id === $selectedTerminalId) &&
 		!($user?.role === 'admin' || ($user?.permissions?.features?.direct_tool_servers ?? true))
 	) {
 		selectedTerminalId.set(null);
@@ -375,7 +392,7 @@
 								/>
 							{:else if activeTab === 'files' && $selectedTerminalId}
 								<FileNav onAttach={handleTerminalAttach} {chatId} />
-							{:else if activeTab === 'files' && codeInterpreterEnabled}
+							{:else if activeTab === 'files' && showPyodideFilesTab}
 								<PyodideFileNav />
 							{:else}
 								<Controls embed={true} {models} bind:chatFiles bind:params />
@@ -526,7 +543,7 @@
 									/>
 								{:else if activeTab === 'files' && $selectedTerminalId}
 									<FileNav onAttach={handleTerminalAttach} overlay={dragged} {chatId} />
-								{:else if activeTab === 'files' && codeInterpreterEnabled}
+								{:else if activeTab === 'files' && showPyodideFilesTab}
 									<PyodideFileNav overlay={dragged} />
 								{:else}
 									<Controls embed={true} {models} bind:chatFiles bind:params />
