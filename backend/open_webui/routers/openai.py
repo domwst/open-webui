@@ -830,6 +830,19 @@ def is_openai_new_model(model: str) -> bool:
     return False
 
 
+def should_use_responses_for_reasoning_tools(url: str, payload: dict) -> bool:
+    if 'api.openai.com' not in url:
+        return False
+
+    if not is_openai_new_model(payload.get('model', '')):
+        return False
+
+    has_reasoning = payload.get('reasoning_effort') is not None or payload.get('reasoning') is not None
+    has_tools = bool(payload.get('tools'))
+
+    return has_reasoning and has_tools
+
+
 def _sanitize_model_for_url(model: str) -> str:
     """Sanitize a model name before interpolating it into a URL path.
 
@@ -1005,6 +1018,15 @@ def convert_to_responses_payload(payload: dict) -> dict:
 
     if 'max_completion_tokens' in responses_payload:
         responses_payload['max_output_tokens'] = responses_payload.pop('max_completion_tokens')
+
+    reasoning_effort = responses_payload.pop('reasoning_effort', None)
+    if reasoning_effort:
+        reasoning = responses_payload.get('reasoning')
+
+        if isinstance(reasoning, dict):
+            reasoning.setdefault('effort', reasoning_effort)
+        else:
+            responses_payload['reasoning'] = {'effort': reasoning_effort}
 
     # Remove Chat Completions-only parameters not supported by the Responses API
     for unsupported_key in (
@@ -1186,6 +1208,8 @@ async def generate_chat_completion(
     headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
 
     is_responses = api_config.get('api_type') == 'responses'
+    if not is_responses and should_use_responses_for_reasoning_tools(url, payload):
+        is_responses = True
 
     if api_config.get('azure', False):
         # Only set api-key header if not using Azure Entra ID authentication
