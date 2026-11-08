@@ -39,21 +39,41 @@
 	export let mergeResponses;
 
 	export let addMessages;
+	export let onToolCallResolved: Function = () => {};
+	export let forkHandler: Function | null = null;
 	export let triggerScroll;
 	export let readOnly = false;
+	export let shareMode: 'continue' | null = null;
+	export let allowDelete = true;
+	export let allowToolApproval: boolean = false;
+	export let compactPreview = false;
 	export let editCodeBlock = true;
 	export let topPadding = false;
+	export let onInsertToNote: ((content: string) => void) | null = null;
+
+	// Keep the latest turn's real height when assigning a chat ID remounts the message list.
+	$: isCurrentTurn =
+		messageId === history.currentId || messageId === history.messages[history.currentId]?.parentId;
+
+	// WebKit's content-visibility implementation has paint bugs that leave
+	// on-screen messages blank (#26712), so skip virtualization there
+	// iOS WebViews and home screen apps carry no Safari token, hence the vendor check
+	const isWebKit =
+		navigator.vendor === 'Apple Computer, Inc.' ||
+		/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 </script>
 
 <div
 	role="listitem"
-	class="flex flex-col justify-between px-5 mb-3 w-full {($settings?.widescreenMode ?? null)
+	class="flex flex-col justify-between px-3.5 mb-3 w-full {($settings?.widescreenMode ?? null)
 		? 'max-w-full'
-		: 'max-w-5xl'} mx-auto rounded-lg group message-listitem"
+		: 'max-w-[58rem]'} mx-auto rounded-lg group message-listitem"
+	class:message-virtualized={!isWebKit && !isCurrentTurn}
 >
 	{#if history.messages[messageId]}
 		{#if history.messages[messageId].role === 'user'}
 			<UserMessage
+				{selectedModels}
 				{user}
 				{chatId}
 				{history}
@@ -69,11 +89,14 @@
 				{showNextMessage}
 				{editMessage}
 				{deleteMessage}
+				{allowDelete}
 				{readOnly}
+				{shareMode}
+				{compactPreview}
 				{editCodeBlock}
 				{topPadding}
 			/>
-		{:else if (history.messages[history.messages[messageId].parentId]?.models?.length ?? 1) === 1}
+		{:else if compactPreview || (history.messages[history.messages[messageId].parentId]?.models?.length ?? 1) === 1}
 			<ResponseMessage
 				{chatId}
 				{history}
@@ -92,12 +115,19 @@
 				{actionMessage}
 				{submitMessage}
 				{deleteMessage}
+				{allowDelete}
+				{allowToolApproval}
 				{continueResponse}
 				{regenerateResponse}
 				{addMessages}
+				{onToolCallResolved}
+				{forkHandler}
 				{readOnly}
+				{compactPreview}
 				{editCodeBlock}
 				{topPadding}
+				{onInsertToNote}
+				{shareMode}
 			/>
 		{:else}
 			{#key messageId}
@@ -115,14 +145,21 @@
 					{actionMessage}
 					{submitMessage}
 					{deleteMessage}
+					{allowDelete}
+					{allowToolApproval}
 					{continueResponse}
 					{regenerateResponse}
 					{mergeResponses}
 					{triggerScroll}
 					{addMessages}
+					{onToolCallResolved}
+					{forkHandler}
 					{readOnly}
+					{compactPreview}
 					{editCodeBlock}
 					{topPadding}
+					{onInsertToNote}
+					{shareMode}
 				/>
 			{/key}
 		{/if}
@@ -133,7 +170,7 @@
 	/* Browser-native virtualization: skip rendering of off-screen messages
 	   without destroying their component trees. Replaces the JS-based
 	   culling that caused catastrophic mount/destroy thrashing. */
-	.message-listitem {
+	.message-virtualized {
 		content-visibility: auto;
 		contain-intrinsic-size: auto 150px;
 	}

@@ -10,7 +10,7 @@ const DELIMITER_LIST = [
 
 // Defines characters that are allowed to immediately precede or follow a math delimiter.
 const ALLOWED_SURROUNDING_CHARS =
-	'\\s。，、､;；„“‘’“”（）「」『』［］《》【】‹›«»…⋯:：？！～⇒?!-\\/:-@\\[-`{-~\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}';
+	'\\s。，、､;；„“‘’“”（）「」『』［］《》【】‹›«»…⋯–—:：？！～⇒?!-\\/:-@\\[-`{-~\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}';
 // Modified to fit more formats in different languages. Originally: '\\s?。，、；!-\\/:-@\\[-`{-~\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}';
 
 // Pre-compile the surrounding character regex once at module load time.
@@ -18,11 +18,6 @@ const ALLOWED_SURROUNDING_CHARS =
 // extremely expensive to compile - doing so on every call caused ~87% of
 // markdown rendering time to be spent in KaTeX regex compilation.
 const ALLOWED_SURROUNDING_CHARS_REGEX = new RegExp(`[${ALLOWED_SURROUNDING_CHARS}]`, 'u');
-
-// const DELIMITER_LIST = [
-//     { left: '$$', right: '$$', display: false },
-//     { left: '$', right: '$', display: false },
-// ];
 
 // const inlineRule = /^(\${1,2})(?!\$)((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\1(?=[\s?!\.,:？！。，：]|$)/;
 // const blockRule = /^(\${1,2})\n((?:\\[^]|[^\\])+?)\n\1(?:\n|$)/;
@@ -72,14 +67,19 @@ const isAllowedTrailing = (src: string, i: number): boolean =>
 const isBlockBoundary = (src: string, i: number): boolean =>
 	/^(?:[ \t]*\r?\n|$)/.test(src.slice(i));
 
-const findClosingDelimiter = (src: string, i: number): number =>
-	i >= src.length - 1
-		? -1
-		: src[i] === '\\'
-			? findClosingDelimiter(src, i + 2)
-			: src[i] === '$' && src[i + 1] === '$'
-				? i
-				: findClosingDelimiter(src, i + 1);
+const findClosingDelimiter = (src: string, i: number): number => {
+	const len = src.length - 1;
+	while (i < len) {
+		if (src[i] === '\\') {
+			i += 2;
+		} else if (src[i] === '$' && src[i + 1] === '$') {
+			return i;
+		} else {
+			i++;
+		}
+	}
+	return -1;
+};
 
 export const tokenizeDisplayMath = (
 	src: string,
