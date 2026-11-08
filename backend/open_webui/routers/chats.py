@@ -2169,7 +2169,7 @@ async def share_chat_by_id(
 
     # Keep this fork's default: a newly shared link is readable without an account.
     # Subsequent snapshots preserve any access restrictions selected by the owner.
-    await AccessGrants.grant_access('shared_chat', id, 'user', '*', 'read', db=db)
+    await AccessGrants.grant_access('shared_chat', id, 'anyone', '*', 'read', db=db)
 
     await publish_event(
         request,

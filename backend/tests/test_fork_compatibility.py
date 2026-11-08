@@ -4,11 +4,14 @@ Run with an isolated application data directory, as with the upstream backend.
 """
 
 import copy
+import importlib.util
+from pathlib import Path
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from open_webui.routers import chats, openai
+import sqlalchemy as sa
 
 
 class ReasoningToolsTests(unittest.TestCase):
@@ -61,6 +64,31 @@ class SharedChatAccessTests(unittest.IsolatedAsyncioTestCase):
     async def test_admin_access_setting_is_respected(self):
         with patch.object(chats, 'ENABLE_ADMIN_CHAT_ACCESS', False), patch.object(chats.AccessGrants, 'has_access', new=AsyncMock(return_value=False)):
             self.assertFalse(await chats.can_read_shared_chat(SimpleNamespace(id='admin', role='admin'), SimpleNamespace(user_id='owner', chat_id='private-chat'), db=None))
+
+
+class SharedChatMigrationTests(unittest.TestCase):
+    def test_only_existing_anonymous_chat_grants_are_converted(self):
+        path = Path(chats.__file__).parents[1] / 'migrations/versions/fork_open_shares_20261108.py'
+        spec = importlib.util.spec_from_file_location('fork_share_migration', path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        engine = sa.create_engine('sqlite://')
+        with engine.begin() as db:
+            db.execute(sa.text('CREATE TABLE access_grant (id TEXT PRIMARY KEY, resource_type TEXT, resource_id TEXT, principal_type TEXT, principal_id TEXT, permission TEXT)'))
+            fixtures = [
+                ('open', 'shared_chat', 'old-open', 'user', '*', 'read'),
+                ('named', 'shared_chat', 'private', 'user', 'reader', 'read'),
+                ('model', 'model', 'model-id', 'user', '*', 'read'),
+                ('duplicate-old', 'shared_chat', 'already-open', 'user', '*', 'read'),
+                ('duplicate-new', 'shared_chat', 'already-open', 'anyone', '*', 'read'),
+            ]
+            for row in fixtures:
+                db.execute(migration.grants.insert().values(**dict(zip(['id', 'resource_type', 'resource_id', 'principal_type', 'principal_id', 'permission'], row))))
+            with patch.object(migration.op, 'get_bind', return_value=db):
+                migration.upgrade()
+                migration.upgrade()
+            actual = dict(db.execute(sa.text('SELECT id, principal_type FROM access_grant')).all())
+            self.assertEqual(actual, {'open': 'anyone', 'named': 'user', 'model': 'user', 'duplicate-new': 'anyone'})
 
 
 if __name__ == '__main__':

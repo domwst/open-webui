@@ -162,7 +162,7 @@
 						</button>
 						{$i18n.t('and create a new shared link.')}
 					{:else}
-						{$i18n.t('Your link is private until you choose who can view it.')}
+						{$i18n.t('Anyone with this link can view it. You can change access below.')}
 					{/if}
 				</div>
 
